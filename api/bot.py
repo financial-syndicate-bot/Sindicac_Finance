@@ -3,7 +3,7 @@ import telebot
 import requests
 from flask import Flask, request
 
-# Загрузка ключей из настроек Vercel
+# Берем настройки из Environment Variables
 TOKEN = os.getenv("BOT_TOKEN")
 CURRENCY_API_KEY = os.getenv("CURRENCY_API_KEY")
 VERCEL_URL = os.getenv("VERCEL_URL")
@@ -11,21 +11,12 @@ VERCEL_URL = os.getenv("VERCEL_URL")
 bot = telebot.TeleBot(TOKEN, threaded=False)
 app = Flask(__name__)
 
-# --- Данные бота ---
-WELCOME_IMAGE_URL = "https://i.imgur.com/4M7IWwP.jpeg"
-strings = {
-    'ru': {
-        'welcome': "<b>💹 Financial Syndicate</b>\n\nВыбери язык:",
-        'rates': "📊 Курсы валют",
-    },
-    'en': {
-        'welcome': "<b>💹 Financial Syndicate</b>\n\nChoose language:",
-        'rates': "📊 Exchange Rates",
-    }
-}
+# Тексты сообщений
+WELCOME_IMAGE = "https://i.imgur.com/4M7IWwP.jpeg"
+TEXT_RU = "<b>💹 Financial Syndicate</b>\n\nВыбери язык:"
+TEXT_EN = "<b>💹 Financial Syndicate</b>\n\nChoose language:"
 
-# --- Логика бота ---
-def get_lang_keyboard():
+def get_keyboard():
     markup = telebot.types.InlineKeyboardMarkup()
     markup.row(
         telebot.types.InlineKeyboardButton("🇷🇺 Русский", callback_data="l_ru"),
@@ -34,41 +25,31 @@ def get_lang_keyboard():
     return markup
 
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
+def start(message):
     try:
-        bot.send_photo(
-            message.chat.id, 
-            WELCOME_IMAGE_URL, 
-            caption=strings['ru']['welcome'], 
-            reply_markup=get_lang_keyboard(),
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        bot.reply_to(message, "Financial Syndicate: Выберите язык / Choose language", reply_markup=get_lang_keyboard())
+        # Пытаемся отправить фото
+        bot.send_photo(message.chat.id, WELCOME_IMAGE, caption=TEXT_RU, reply_markup=get_keyboard(), parse_mode='HTML')
+    except:
+        # Если фото не грузится, шлем просто текст
+        bot.send_message(message.chat.id, TEXT_RU, reply_markup=get_keyboard(), parse_mode='HTML')
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('l_'))
-def set_lang(call):
+def lang_answer(call):
     bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, "✅ Настройка завершена! / Setup complete!")
+    bot.send_message(call.message.chat.id, "✅ Бот готов к работе!")
 
-# --- Настройка Webhook для Vercel ---
+# --- Логика сервера ---
 @app.route('/' + TOKEN, methods=['POST'])
-def getMessage():
-    try:
+def receive_update():
+    if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
-        return "!", 200
-    except Exception as e:
-        print(f"Error: {e}")
-        return "Error", 500
+        return '', 200
+    return 'Forbidden', 403
 
-@app.route("/")
-def webhook():
+@app.route('/')
+def setup_webhook():
     bot.remove_webhook()
-    # Установка связи с Telegram
-    status = bot.set_webhook(url=f'https://{VERCEL_URL}/{TOKEN}')
-    if status:
-        return "Webhook set успешно!", 200
-    else:
-        return "Webhook failed", 500
+    bot.set_webhook(url=f'https://{VERCEL_URL}/{TOKEN}')
+    return "✅ Вебхук успешно обновлен!", 200
