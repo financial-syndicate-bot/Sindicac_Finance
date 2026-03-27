@@ -1,11 +1,5 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/bot.py" }
-  ],
-  "functions": {
-    "api/bot.py": {
-      "memory": 128,
-      "maxDuration": 10
-    }
-  }
+  ]
 }
