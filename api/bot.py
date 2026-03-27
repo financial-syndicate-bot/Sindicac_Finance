@@ -3,72 +3,72 @@ import telebot
 import requests
 from flask import Flask, request
 
-# Данные берем из настроек Vercel (Environment Variables)
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# Загрузка ключей из настроек Vercel
+TOKEN = os.getenv("BOT_TOKEN")
 CURRENCY_API_KEY = os.getenv("CURRENCY_API_KEY")
-WELCOME_IMAGE_URL = "https://i.imgur.com/4M7IWwP.jpeg"
+VERCEL_URL = os.getenv("VERCEL_URL")
 
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
+bot = telebot.TeleBot(TOKEN, threaded=False)
 app = Flask(__name__)
 
-# Сообщения
+# --- Данные бота ---
+WELCOME_IMAGE_URL = "https://i.imgur.com/4M7IWwP.jpeg"
 strings = {
     'ru': {
         'welcome': "<b>💹 Financial Syndicate</b>\n\nВыбери язык:",
-        'btn_report': "📊 Курсы валют",
-        'btn_crypto': "₿ Крипта",
-        'btn_support': "❤️ Поддержать",
-        'choose_lang': "🌐 Выбери язык:",
+        'rates': "📊 Курсы валют",
     },
     'en': {
         'welcome': "<b>💹 Financial Syndicate</b>\n\nChoose language:",
-        'btn_report': "📊 Exchange Rates",
-        'btn_crypto': "₿ Crypto",
-        'btn_support': "❤️ Support",
-        'choose_lang': "🌐 Choose language:",
+        'rates': "📊 Exchange Rates",
     }
 }
 
-user_languages = {}
-
+# --- Логика бота ---
 def get_lang_keyboard():
     markup = telebot.types.InlineKeyboardMarkup()
     markup.row(
         telebot.types.InlineKeyboardButton("🇷🇺 Русский", callback_data="l_ru"),
-        telebot.types.InlineKeyboardButton("🇬🇧 English", callback_data="l_en"),
+        telebot.types.InlineKeyboardButton("🇬🇧 English", callback_data="l_en")
     )
     return markup
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_photo(
-        message.chat.id,
-        WELCOME_IMAGE_URL,
-        caption=strings['ru']['welcome'],
-        reply_markup=get_lang_keyboard(),
-        parse_mode='HTML'
-    )
+    try:
+        bot.send_photo(
+            message.chat.id, 
+            WELCOME_IMAGE_URL, 
+            caption=strings['ru']['welcome'], 
+            reply_markup=get_lang_keyboard(),
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        bot.reply_to(message, "Financial Syndicate: Выберите язык / Choose language", reply_markup=get_lang_keyboard())
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('l_'))
 def set_lang(call):
-    lang = call.data.split('_')[1]
-    user_languages[call.from_user.id] = lang
     bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, "✅ Done! / Ready!")
+    bot.send_message(call.message.chat.id, "✅ Настройка завершена! / Setup complete!")
 
-# --- ЭТОТ БЛОК НУЖЕН ДЛЯ VERCEL ---
-
-@app.route('/' + BOT_TOKEN, methods=['POST'])
+# --- Настройка Webhook для Vercel ---
+@app.route('/' + TOKEN, methods=['POST'])
 def getMessage():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "!", 200
+    try:
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return "!", 200
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Error", 500
 
 @app.route("/")
 def webhook():
     bot.remove_webhook()
-    # Автоматически берет URL проекта из Vercel
-    project_url = os.getenv("VERCEL_URL")
-    bot.set_webhook(url=f'https://{project_url}/{BOT_TOKEN}')
-    return "Webhook set successfully!", 200
+    # Установка связи с Telegram
+    status = bot.set_webhook(url=f'https://{VERCEL_URL}/{TOKEN}')
+    if status:
+        return "Webhook set успешно!", 200
+    else:
+        return "Webhook failed", 500
