@@ -1,8 +1,11 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "api/bot.py" }],
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/bot.py" }
+  ],
   "functions": {
     "api/bot.py": {
-      "runtime": "vercel-python@0.0.6"
+      "memory": 128,
+      "maxDuration": 10
     }
   }
 }
